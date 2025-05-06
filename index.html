@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#ff0000">
+    <title>Personal Audio Player</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+
+<body>
+    <div class="player-container">
+        <div class="auth-container" id="authContainer">
+            <button id="loginBtn" class="spotify-login-btn">
+                <i class="fab fa-spotify"></i> Login with Spotify
+            </button>
+        </div>
+
+        <div class="file-input-container">
+            <label for="fileInput" class="file-input-label">
+                <i class="fas fa-folder-open"></i> Select Music Folder
+            </label>
+            <input type="file" id="fileInput" multiple webkitdirectory directory accept="audio/*" />
+        </div>
+
+        <div class="source-toggle">
+            <button id="localSourceBtn" class="source-btn active">Local Files</button>
+            <button id="spotifySourceBtn" class="source-btn">Spotify</button>
+        </div>
+
+        <h2 id="currentTrack" class="track-title">Select a track</h2>
+        <audio id="audioPlayer" controls hidden></audio>
+
+        <div class="equalizer-container">
+            <canvas id="waveformCanvas" width="600" height="100"></canvas>
+            <canvas id="equalizerCanvas" width="600" height="100"></canvas>
+            <div class="frequency-labels">
+                <span>20Hz</span>
+                <span>100Hz</span>
+                <span>500Hz</span>
+                <span>2kHz</span>
+                <span>10kHz</span>
+                <span>20kHz</span>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" class="control-btn"><i class="fas fa-step-backward"></i></button>
+            <button id="playBtn" class="control-btn play-btn"><i class="fas fa-play"></i></button>
+            <button id="nextBtn" class="control-btn"><i class="fas fa-step-forward"></i></button>
+            <button id="loopBtn" class="control-btn"><i class="fas fa-sync-alt"></i></button>
+            <button id="shuffleBtn" class="control-btn"><i class="fas fa-random"></i></button>
+        </div>
+
+        <div class="progress-container">
+            <input type="range" id="progressBar" class="progress-bar" value="0" max="100" />
+            <div id="timeDisplay">
+                <span id="currentTime">0:00</span>
+                <span id="totalTime">0:00</span>
+            </div>
+        </div>
+
+        <div class="volume-control">
+            <i class="fas fa-volume-up volume-icon"></i>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.5" />
+        </div>
+
+        <div class="custom-frequencies">
+            <h3><i class="fas fa-sliders-h"></i> Customize Frequency Bands</h3>
+            <div class="eq-button-group">
+                <button id="resetEqBtn" class="reset-eq-btn"><i class="fas fa-undo"></i> Reset EQ</button>
+                <button id="applyFreqBtn"><i class="fas fa-bolt"></i> Apply</button>
+            </div>
+            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 10px; text-align: right;">
+                Changes will affect audio quality
+            </p>
+        </div>
+
+        <ul id="trackList"></ul>
+        <div id="spotifyTrackList" class="spotify-track-list"></div>
+    </div>
+
+    <!-- Spotify Web Playback SDK -->
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+    <script src="js/script.js"></script>
+</body>
+
+</html>
