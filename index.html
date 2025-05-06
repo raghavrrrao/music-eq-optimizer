@@ -25,11 +25,6 @@
             <input type="file" id="fileInput" multiple webkitdirectory directory accept="audio/*" />
         </div>
 
-        <div class="source-toggle">
-            <button id="localSourceBtn" class="source-btn active">Local Files</button>
-            <button id="spotifySourceBtn" class="source-btn">Spotify</button>
-        </div>
-
         <h2 id="currentTrack" class="track-title">Select a track</h2>
         <audio id="audioPlayer" controls hidden></audio>
 
@@ -79,12 +74,16 @@
         </div>
 
         <ul id="trackList"></ul>
+        <h1 id="song-title"></h1>
+        <h2 id="artist-name"></h2>
+        <img id="album-art" src="" alt="Album Art" width="300" />
         <div id="spotifyTrackList" class="spotify-track-list"></div>
     </div>
 
     <!-- Spotify Web Playback SDK -->
+    <script src="script.js"></script>
     <script src="https://sdk.scdn.co/spotify-player.js"></script>
-    <script src="js/script.js"></script>
+
 </body>
 
 </html>

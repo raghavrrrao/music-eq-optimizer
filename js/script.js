@@ -45,7 +45,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentSpotifyTrackIndex = 0;
     let isSpotifyActive = false;
     let deviceId;
-    let spotifyAccessToken;
+    let spotifyAccessToken = 'BQD6LWzMg6k_jPFh3Ot2vZqW_2TYQUjJQ9zm9vjllK3aAE8BNegKJhXlnf9DlfQJaPYyAMRvvf9lrXKVLSmRIaHlZVIKM3SCUzIjDFGzh_W_1GJWsLAVHXFAsNSYdqo9fPfiH2aTazty-vkoX3yr_Gy40vm2oeFYuhMO-SlrlLYnwcqE2ELJ1tmvz7juBVyQGfsHoBAhGOOgEtO8l6V94ys1OjwgcigN35eDb2jTma4BRoIJ9-RpqKyWF4ndvYIW82h-';
     let spotifyPlayerState = null;
 
     // Default EQ bands (8 bands)
@@ -53,21 +53,9 @@ document.addEventListener('DOMContentLoaded', function () {
     let freqBands = [...defaultFreqBands];
 
     // Spotify Configuration
-    const SPOTIFY_CLIENT_ID = '2897e1a5871b436784c6e18a5c8eb04a'; // Replace with your Spotify Client ID
-    const SPOTIFY_REDIRECT_URI = window.location.origin + window.location.pathname;
-    const SPOTIFY_SCOPES = [
-        'streaming',
-        'user-read-email',
-        'user-read-private',
-        'user-library-read',
-        'user-modify-playback-state',
-        'user-read-playback-state',
-        'user-read-currently-playing',
-        'user-read-recently-played',
-        'user-top-read',
-        'playlist-read-private',
-        'playlist-read-collaborative'
-    ].join(' ');
+    const SPOTIFY_CLIENT_ID = 'c69d532509044ad28773383b514fe85a';
+    const SPOTIFY_REDIRECT_URI = 'https://music-eq-optimizer.vercel.app/';
+    const SPOTIFY_SCOPES = "user-read-playback-state user-read-currently-playing";
 
     // Load saved settings
     loadSettings();
@@ -121,11 +109,11 @@ document.addEventListener('DOMContentLoaded', function () {
         const savedSettings = localStorage.getItem('audioPlayerSettings');
         if (savedSettings) {
             const settings = JSON.parse(savedSettings);
-            
+
             // Restore volume
             volumeSlider.value = settings.volume;
             audioPlayer.volume = settings.volume;
-            
+
             // Restore mute state
             isMuted = settings.isMuted;
             if (isMuted) {
@@ -136,21 +124,21 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 updateVolumeIcon(settings.volume);
             }
-            
+
             // Restore loop state
             isLooping = settings.isLooping;
             audioPlayer.loop = isLooping;
             loopBtn.classList.toggle('active', isLooping);
-            
+
             // Restore shuffle state
             isShuffling = settings.isShuffling;
             shuffleBtn.classList.toggle('active', isShuffling);
-            
+
             // Restore frequency bands
             if (settings.freqBands && settings.freqBands.length) {
                 freqBands = settings.freqBands;
             }
-            
+
             // Restore source
             if (settings.isSpotifyActive && spotifyAccessToken) {
                 switchSource(true);
@@ -257,14 +245,14 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Authorization': `Bearer ${spotifyAccessToken}`
             }
         })
-        .then(response => response.json())
-        .then(data => {
-            spotifyTracks = data.items.map(item => item.track);
-            populateSpotifyTrackList();
-        })
-        .catch(error => {
-            console.error('Error fetching Spotify tracks:', error);
-        });
+            .then(response => response.json())
+            .then(data => {
+                spotifyTracks = data.items.map(item => item.track);
+                populateSpotifyTrackList();
+            })
+            .catch(error => {
+                console.error('Error fetching Spotify tracks:', error);
+            });
     }
 
     function populateSpotifyTrackList() {
@@ -320,15 +308,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 uris: [trackUri]
             })
         })
-        .then(() => {
-            isPlaying = true;
-            updatePlayButton();
-            updateActiveSpotifyTrack(index);
-            currentTrackTitle.textContent = `${spotifyTracks[index].name} - ${spotifyTracks[index].artists.map(artist => artist.name).join(', ')}`;
-        })
-        .catch(error => {
-            console.error('Error playing Spotify track:', error);
-        });
+            .then(() => {
+                isPlaying = true;
+                updatePlayButton();
+                updateActiveSpotifyTrack(index);
+                currentTrackTitle.textContent = `${spotifyTracks[index].name} - ${spotifyTracks[index].artists.map(artist => artist.name).join(', ')}`;
+            })
+            .catch(error => {
+                console.error('Error playing Spotify track:', error);
+            });
     }
 
     function updateActiveSpotifyTrack(index) {
@@ -361,7 +349,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (state.track_window?.current_track) {
             const track = state.track_window.current_track;
             currentTrackTitle.textContent = `${track.name} - ${track.artists.map(artist => artist.name).join(', ')}`;
-            
+
             // Find and update the active track in the list
             const trackIndex = spotifyTracks.findIndex(t => t.id === track.id);
             if (trackIndex !== -1) {
@@ -385,7 +373,7 @@ document.addEventListener('DOMContentLoaded', function () {
             spotifySourceBtn.classList.add('active');
             trackList.style.display = 'none';
             spotifyTrackList.style.display = 'block';
-            
+
             // Pause local player if playing
             if (isPlaying && !isSpotifyActive) {
                 pauseTrack();
@@ -395,13 +383,29 @@ document.addEventListener('DOMContentLoaded', function () {
             spotifySourceBtn.classList.remove('active');
             trackList.style.display = 'block';
             spotifyTrackList.style.display = 'none';
-            
+
             // Pause Spotify player if playing
             if (isPlaying && isSpotifyActive && spotifyPlayer) {
                 spotifyPlayer.pause();
             }
         }
     }
+
+    window.onSpotifyWebPlaybackSDKReady = () => {
+        const token = 'BQD6LWzMg6k_jPFh3Ot2vZqW_2TYQUjJQ9zm9vjllK3aAE8BNegKJhXlnf9DlfQJaPYyAMRvvf9lrXKVLSmRIaHlZVIKM3SCUzIjDFGzh_W_1GJWsLAVHXFAsNSYdqo9fPfiH2aTazty-vkoX3yr_Gy40vm2oeFYuhMO-SlrlLYnwcqE2ELJ1tmvz7juBVyQGfsHoBAhGOOgEtO8l6V94ys1OjwgcigN35eDb2jTma4BRoIJ9-RpqKyWF4ndvYIW82h-';
+        const player = new Spotify.Player({
+            name: 'Web Playback SDK Player',
+            getOAuthToken: cb => { cb(token); },
+            volume: 0.5
+        });
+
+        // Add event listeners and connect player
+        player.addListener('ready', ({ device_id }) => {
+            console.log('Ready with Device ID', device_id);
+        });
+
+        player.connect();
+    };
 
     // Audio Player Functions
     function togglePlay() {
@@ -496,10 +500,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Toggle Mute Function
     function toggleMute() {
         isMuted = !isMuted;
-        
+
         if (isMuted) {
             // Store current volume before muting
             lastVolume = audioPlayer.volume > 0 ? audioPlayer.volume : 0.5;
@@ -516,12 +519,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 gainNode.gain.value = lastVolume;
             }
         }
-        
+
         updateVolumeIcon(isMuted ? 0 : lastVolume);
         saveSettings();
     }
 
-    // Update Volume Icon
     function updateVolumeIcon(volume) {
         if (volume === 0) {
             volumeIcon.className = 'fas fa-volume-mute volume-icon';
@@ -532,7 +534,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Setup Audio Context
     function setupAudioContext() {
         if (!audioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -583,7 +584,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Setup Equalizer
     function setupEqualizer() {
         // Clear existing equalizer
         equalizer = [];
@@ -629,7 +629,6 @@ document.addEventListener('DOMContentLoaded', function () {
         createEQSliders();
     }
 
-    // Create EQ Sliders
     function createEQSliders() {
         // Check if we have an EQ container already
         let eqSliders = document.getElementById('eqSliders');
@@ -699,7 +698,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     if (equalizer[i]) {
                         equalizer[i].gain.value = value;
                     }
-                    
+
                     // Save settings when EQ is adjusted
                     saveSettings();
                 });
@@ -715,7 +714,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Helper function to format frequency labels
     function getFrequencyLabel(freq) {
         if (freq >= 1000) {
             return `${(freq / 1000).toFixed(1)}kHz`;
@@ -723,7 +721,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return `${freq}Hz`;
     }
 
-    // Apply Custom Frequencies
     function applyCustomFrequencies() {
         const newFreqBands = [];
 
@@ -837,7 +834,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 1500);
     }
 
-    // Handle File Selection
     function handleFileSelect(e) {
         const files = Array.from(e.target.files).filter(file => file.type.startsWith('audio/'));
 
@@ -854,7 +850,6 @@ document.addEventListener('DOMContentLoaded', function () {
         loadTrack(currentTrackIndex);
     }
 
-    // Populate Track List
     function populateTrackList() {
         trackList.innerHTML = '';
 
@@ -870,7 +865,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Load Track
     function loadTrack(index) {
         if (tracks.length === 0) return;
 
@@ -898,7 +892,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Play Track
     function playTrack() {
         if (!audioPlayer.src) return;
 
@@ -917,25 +910,12 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // Pause Track
     function pauseTrack() {
         audioPlayer.pause();
         isPlaying = false;
         updatePlayButton();
     }
 
-    // Toggle Play/Pause
-    function togglePlay() {
-        if (tracks.length === 0) return;
-
-        if (isPlaying) {
-            pauseTrack();
-        } else {
-            playTrack();
-        }
-    }
-
-    // Update Play Button
     function updatePlayButton() {
         if (isPlaying) {
             playBtn.innerHTML = '<i class="fas fa-pause"></i>';
@@ -944,43 +924,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Play Previous Track
-    function playPrevious() {
-        if (tracks.length === 0) return;
-
-        if (audioPlayer.currentTime > 3) {
-            // If more than 3 seconds into the song, restart current track
-            audioPlayer.currentTime = 0;
-        } else {
-            // Go to previous track
-            currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
-            loadTrack(currentTrackIndex);
-            playTrack();
-        }
-    }
-
-    // Play Next Track
-    function playNext() {
-        if (tracks.length === 0) return;
-
-        if (isShuffling) {
-            // Random track
-            let newIndex;
-            do {
-                newIndex = Math.floor(Math.random() * tracks.length);
-            } while (newIndex === currentTrackIndex && tracks.length > 1);
-
-            currentTrackIndex = newIndex;
-        } else {
-            // Next track in order
-            currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
-        }
-
-        loadTrack(currentTrackIndex);
-        playTrack();
-    }
-
-    // Toggle Loop
     function toggleLoop() {
         isLooping = !isLooping;
         audioPlayer.loop = isLooping;
@@ -988,27 +931,23 @@ document.addEventListener('DOMContentLoaded', function () {
         saveSettings();
     }
 
-    // Toggle Shuffle
     function toggleShuffle() {
         isShuffling = !isShuffling;
         shuffleBtn.classList.toggle('active', isShuffling);
         saveSettings();
     }
 
-    // Handle Track End
     function handleTrackEnd() {
         if (!isLooping) {
             playNext();
         }
     }
 
-    // Seek Track
     function seekTrack() {
         const seekTime = (progressBar.value / 100) * audioPlayer.duration;
         audioPlayer.currentTime = seekTime;
     }
 
-    // Update Progress
     function updateProgress() {
         if (isNaN(audioPlayer.duration)) return;
 
@@ -1018,33 +957,30 @@ document.addEventListener('DOMContentLoaded', function () {
         currentTime.textContent = formatTime(audioPlayer.currentTime);
     }
 
-    // Update Total Time
     function updateTotalTime() {
         totalTime.textContent = formatTime(audioPlayer.duration);
     }
 
-    // Adjust Volume
     function adjustVolume() {
         const volume = parseFloat(volumeSlider.value);
         audioPlayer.volume = volume;
-        
+
         if (gainNode) {
             gainNode.gain.value = volume;
         }
-        
+
         // Update mute state based on volume
         isMuted = (volume === 0);
-        
+
         // If volume is adjusted above zero, update lastVolume
         if (volume > 0) {
             lastVolume = volume;
         }
-        
+
         updateVolumeIcon(volume);
         saveSettings();
     }
 
-    // Format Time (converts seconds to MM:SS format)
     function formatTime(seconds) {
         if (isNaN(seconds)) return '0:00';
 
@@ -1053,7 +989,6 @@ document.addEventListener('DOMContentLoaded', function () {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     }
 
-    // Draw Visualizations
     function drawVisualizations() {
         if (!analyser) return;
 
@@ -1211,6 +1146,8 @@ document.addEventListener('DOMContentLoaded', function () {
             audioContext.close();
         }
     });
+
+
 
     // Initialize volume display on load
     updateVolumeIcon(audioPlayer.volume);
