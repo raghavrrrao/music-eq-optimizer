@@ -57,7 +57,6 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentSpotifyTrackIndex = 0;
     let isSpotifyActive = false;
     let deviceId;
-    let spotifyAccessToken = 'BQC1pWC4VJrEgrExAk4j6t_sUZCcXQiQjLSuLY43__C2ZZwrBvQ1Ew8Ev8l8J7taVZrY1CHVp5rcZ3w5JDdyb3o3NMMi19YtTTNYHal7hSI2CdXQlwgLOSbl8l8Kq_UMsQnNluBMQWiDVfn5w9YKWSADf820Oml_XwPkW97ZE-ldqX4kep5wddvPwkpbVBiSaTm8upWqCAGhrifxL5PGuwdNARauyGsMQIMG2BSDbpoed-VmHiRHrkUCvb8TpvVcszcM';
     let spotifyPlayerState = null;
 
     // Default EQ bands (8 bands)
@@ -66,8 +65,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Spotify Configuration
     const SPOTIFY_CLIENT_ID = 'c69d532509044ad28773383b514fe85a';
-    const SPOTIFY_REDIRECT_URI = 'https://music-eq-optimizer.vercel.app/';
+    const SPOTIFY_REDIRECT_URI ='https://music-eq-optimizer.vercel.app/';
     const SPOTIFY_SCOPES = "user-read-playback-state user-read-currently-playing";
+    const SPOTIFY_CLIENT_SECRET = 'f0bbc96356cb4565957e91a3b51c98f2'; // Add this near your other Spotify constants
 
     // Load saved settings
     loadSettings();
@@ -170,37 +170,60 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Spotify Functions
     function handleSpotifyLogin() {
+        // Explicitly add response_type=token
         const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(SPOTIFY_REDIRECT_URI)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`;
         window.location.href = authUrl;
     }
 
     function checkSpotifyAuthCallback() {
-        const hash = window.location.hash.substring(1);
-        const params = new URLSearchParams(hash);
-        const accessToken = params.get('access_token');
-        const expiresIn = params.get('expires_in');
-
-        if (accessToken) {
-            // Store the token and expiration
-            spotifyAccessToken = accessToken;
-            localStorage.setItem('spotifyAccessToken', accessToken);
-            localStorage.setItem('spotifyTokenExpiry', Date.now() + (expiresIn * 1000));
-
-            // Clear the hash from the URL
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+    
+        if (code) {
+            // Exchange the code for an access token
+            exchangeCodeForToken(code);
+            
+            // Clear the code from the URL
             window.history.pushState({}, document.title, window.location.pathname);
-
-            // Store the initialization function for when the SDK is ready
-            window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
+        }
+    }
+    
+    async function exchangeCodeForToken(code) {
+        try {
+            const response = await fetch('https://accounts.spotify.com/api/token', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': 'Basic ' + btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
+                },
+                body: new URLSearchParams({
+                    grant_type: 'authorization_code',
+                    code: code,
+                    redirect_uri: SPOTIFY_REDIRECT_URI
+                })
+            });
+    
+            const data = await response.json();
             
-            // If Spotify SDK is already loaded, initialize now
-            if (window.Spotify) {
-                initializeSpotifyPlayer();
+            if (data.access_token) {
+                spotifyAccessToken = data.access_token;
+                localStorage.setItem('spotifyAccessToken', data.access_token);
+                localStorage.setItem('spotifyRefreshToken', data.refresh_token);
+                localStorage.setItem('spotifyTokenExpiry', Date.now() + (data.expires_in * 1000));
+    
+                // Initialize the player
+                window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
+                if (window.Spotify) {
+                    initializeSpotifyPlayer();
+                }
+                
+                fetchSpotifyTracks();
+                
+                // Hide login button
+                if (authContainer) authContainer.style.display = 'none';
             }
-            
-            fetchSpotifyTracks();
-
-            // Hide login button
-            if (authContainer) authContainer.style.display = 'none';
+        } catch (error) {
+            console.error('Error exchanging code for token:', error);
         }
     }
 
