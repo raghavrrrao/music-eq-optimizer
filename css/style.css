@@ -128,6 +128,17 @@ input[type="file"] {
     box-shadow: 0 0 8px var(--primary-color);
 }
 
+.eq-mode-indicator {
+    font-size: 0.8rem;
+    color: #1DB954;
+    margin-top: 5px;
+    text-align: center;
+}
+
+.spotify-eq {
+    border-color: rgba(29, 185, 84, 0.3) !important;
+}
+
 #waveformCanvas,
 #equalizerCanvas {
     width: 100%;

@@ -1,4 +1,4 @@
-// Define onSpotifyWebPlaybackSDKReady globally first (before DOMContentLoaded)
+/// Define onSpotifyWebPlaybackSDKReady globally first (before DOMContentLoaded)
 window.onSpotifyWebPlaybackSDKReady = () => {
     console.log('Spotify Web Playback SDK Ready');
     if (window.initializeSpotifyPlayerCallback) {
@@ -24,13 +24,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const currentTrackTitle = document.getElementById('currentTrack');
     const waveformCanvas = document.getElementById('waveformCanvas');
     const equalizerCanvas = document.getElementById('equalizerCanvas');
-    
+
     // Check if elements exist before adding event listeners
     const applyFreqBtn = document.getElementById('applyFreqBtn');
     const resetEqBtn = document.getElementById('resetEqBtn');
     const loginBtn = document.getElementById('loginBtn');
     const authContainer = document.getElementById('authContainer');
-    
+
     // These elements might not exist in the HTML yet
     const localSourceBtn = document.getElementById('localSourceBtn');
     const spotifySourceBtn = document.getElementById('spotifySourceBtn');
@@ -58,17 +58,25 @@ document.addEventListener('DOMContentLoaded', function () {
     let isSpotifyActive = false;
     let deviceId;
     let spotifyPlayerState = null;
+    let spotifyAccessToken;
 
     // Default EQ bands (8 bands)
     const defaultFreqBands = [60, 170, 310, 600, 1000, 3000, 6000, 12000];
     let freqBands = [...defaultFreqBands];
 
-    // Spotify Configuration
-    const SPOTIFY_CLIENT_ID = 'c69d532509044ad28773383b514fe85a';
-    const SPOTIFY_REDIRECT_URI ='https://music-eq-optimizer.vercel.app/';
-    const SPOTIFY_SCOPES = "user-read-playback-state user-read-currently-playing";
-    const SPOTIFY_CLIENT_SECRET = 'f0bbc96356cb4565957e91a3b51c98f2'; // Add this near your other Spotify constants
-
+    // Spotify Configuration (Updated)
+    // Update your Spotify config at the top of your script
+    // Update these constants at the top of your script.js
+    const SPOTIFY_CLIENT_ID = 'c69d532509044ad28773383b514fe85a'; // Your actual client ID
+    const SPOTIFY_REDIRECT_URI = 'https://music-eq-optimizer.vercel.app/'; // No encodeURIComponent
+    const SPOTIFY_SCOPES = [
+        'streaming',
+        'user-read-email',
+        'user-read-private',
+        'user-library-read',
+        'user-read-playback-state',
+        'user-modify-playback-state'
+    ].join(' ');
     // Load saved settings
     loadSettings();
 
@@ -99,15 +107,15 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize Spotify Web Playback SDK if token exists
     if (localStorage.getItem('spotifyAccessToken')) {
         spotifyAccessToken = localStorage.getItem('spotifyAccessToken');
-        
+
         // Store the initialization function for when the SDK is ready
         window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
-        
+
         // If Spotify SDK is already loaded, initialize now 
         if (window.Spotify) {
             initializeSpotifyPlayer();
         }
-        
+
         fetchSpotifyTracks();
     } else if (authContainer) {
         authContainer.style.display = 'block';
@@ -168,62 +176,67 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
+    // Spotify Auth Helper Functions
+    function generateRandomString(length) {
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let text = '';
+
+        for (let i = 0; i < length; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
     // Spotify Functions
     function handleSpotifyLogin() {
-        // Explicitly add response_type=token
-        const authUrl = `https://accounts.spotify.com/authorize?client_id=${SPOTIFY_CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(SPOTIFY_REDIRECT_URI)}&scope=${encodeURIComponent(SPOTIFY_SCOPES)}&show_dialog=true`;
-        window.location.href = authUrl;
+        const state = generateRandomString(16);
+        localStorage.setItem('spotify_auth_state', state);
+
+        const authUrl = new URL('https://accounts.spotify.com/authorize');
+        authUrl.searchParams.append('client_id', SPOTIFY_CLIENT_ID);
+        authUrl.searchParams.append('response_type', 'code');
+        authUrl.searchParams.append('redirect_uri', SPOTIFY_REDIRECT_URI);
+        authUrl.searchParams.append('state', state);
+        authUrl.searchParams.append('scope', SPOTIFY_SCOPES);
+        authUrl.searchParams.append('show_dialog', 'true');
+
+        window.location.href = authUrl.toString();
     }
 
     function checkSpotifyAuthCallback() {
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-    
-        if (code) {
-            // Exchange the code for an access token
-            exchangeCodeForToken(code);
-            
-            // Clear the code from the URL
-            window.history.pushState({}, document.title, window.location.pathname);
-        }
-    }
-    
-    async function exchangeCodeForToken(code) {
-        try {
-            const response = await fetch('https://accounts.spotify.com/api/token', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                    'Authorization': 'Basic ' + btoa(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`)
-                },
-                body: new URLSearchParams({
-                    grant_type: 'authorization_code',
-                    code: code,
-                    redirect_uri: SPOTIFY_REDIRECT_URI
-                })
-            });
-    
-            const data = await response.json();
-            
-            if (data.access_token) {
-                spotifyAccessToken = data.access_token;
-                localStorage.setItem('spotifyAccessToken', data.access_token);
-                localStorage.setItem('spotifyRefreshToken', data.refresh_token);
-                localStorage.setItem('spotifyTokenExpiry', Date.now() + (data.expires_in * 1000));
-    
-                // Initialize the player
-                window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
-                if (window.Spotify) {
-                    initializeSpotifyPlayer();
-                }
-                
-                fetchSpotifyTracks();
-                
-                // Hide login button
-                if (authContainer) authContainer.style.display = 'none';
+        // Check for Implicit flow response (in URL hash)
+        const hash = window.location.hash.substring(1);
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const expiresIn = params.get('expires_in');
+        const tokenType = params.get('token_type');
+        const state = params.get('state');
+        const storedState = localStorage.getItem('spotify_auth_state');
+
+        // Validate state if present
+        if (accessToken && (!state || state === storedState)) {
+            if (storedState) {
+                localStorage.removeItem('spotify_auth_state');
             }
-        } catch (error) {
-            console.error('Error exchanging code for token:', error);
+
+            // Store the token
+            spotifyAccessToken = accessToken;
+            localStorage.setItem('spotifyAccessToken', accessToken);
+            localStorage.setItem('spotifyTokenExpiry', Date.now() + (expiresIn * 1000));
+
+            // Clear the hash from URL
+            window.history.pushState({}, document.title, window.location.pathname);
+
+            // Initialize player
+            window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
+            if (window.Spotify) {
+                initializeSpotifyPlayer();
+            }
+
+            fetchSpotifyTracks();
+
+            // Hide login button
+            if (authContainer) authContainer.style.display = 'none';
         }
     }
 
@@ -236,7 +249,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Create new player instance
         spotifyPlayer = new Spotify.Player({
-            name: 'Personal Audio Player',
+            name: 'Music EQ Optimizer',
             getOAuthToken: cb => { cb(spotifyAccessToken); },
             volume: volumeSlider ? volumeSlider.value : 0.5
         });
@@ -245,11 +258,14 @@ document.addEventListener('DOMContentLoaded', function () {
         spotifyPlayer.addListener('ready', ({ device_id }) => {
             console.log('Spotify Player Ready with Device ID', device_id);
             deviceId = device_id;
+            enableSpotifyControls(true);
+            startPlayerStateMonitor();
         });
 
         // Not Ready event
         spotifyPlayer.addListener('not_ready', ({ device_id }) => {
             console.log('Device ID has gone offline', device_id);
+            enableSpotifyControls(false);
         });
 
         // Player state changed
@@ -266,9 +282,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         spotifyPlayer.addListener('authentication_error', ({ message }) => {
             console.error('Authentication Error:', message);
-            localStorage.removeItem('spotifyAccessToken');
-            localStorage.removeItem('spotifyTokenExpiry');
-            if (authContainer) authContainer.style.display = 'block';
+            handleSpotifyAuthError();
         });
 
         spotifyPlayer.addListener('account_error', ({ message }) => {
@@ -281,38 +295,101 @@ document.addEventListener('DOMContentLoaded', function () {
 
         // Connect to the player
         spotifyPlayer.connect().then(success => {
-            if (success) {
-                console.log('Spotify Player connected successfully');
+            console.log('Spotify Player connection:', success ? 'successful' : 'failed');
+            if (!success) {
+                console.error('Failed to connect to Spotify Player');
+            }
+        });
+
+        // Initialize equalizer with default settings
+        spotifyPlayer.setEqualizer({
+            bands: [
+                { band: 0, gain: 0 }, // 60Hz
+                { band: 1, gain: 0 }, // 170Hz
+                { band: 2, gain: 0 }, // 310Hz
+                { band: 3, gain: 0 }, // 600Hz
+                { band: 4, gain: 0 }, // 1kHz
+                { band: 5, gain: 0 }, // 3kHz
+                { band: 6, gain: 0 }, // 6kHz
+                { band: 7, gain: 0 }  // 12kHz
+            ]
+        });
+    }
+
+    function enableSpotifyControls(enabled) {
+        const controls = [playBtn, prevBtn, nextBtn];
+        controls.forEach(btn => {
+            if (btn) {
+                btn.disabled = !enabled;
+                btn.style.opacity = enabled ? 1 : 0.5;
             }
         });
     }
 
-    function fetchSpotifyTracks() {
-        if (!spotifyAccessToken) return;
+    function handleSpotifyAuthError() {
+        localStorage.removeItem('spotifyAccessToken');
+        localStorage.removeItem('spotifyTokenExpiry');
+        if (authContainer) authContainer.style.display = 'block';
+        alert('Spotify authentication failed. Please login again.');
+    }
 
-        // Example: Fetch user's saved tracks
-        fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
-            headers: {
-                'Authorization': `Bearer ${spotifyAccessToken}`
+    function startPlayerStateMonitor() {
+        // Check state every second
+        const monitorInterval = setInterval(() => {
+            if (spotifyPlayer && isSpotifyActive) {
+                spotifyPlayer.getCurrentState().then(state => {
+                    console.debug('Current player state:', state);
+                    if (state) {
+                        updatePlayerUIFromSpotifyState(state);
+                    }
+                });
+            } else {
+                clearInterval(monitorInterval);
             }
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.items) {
-                    spotifyTracks = data.items.map(item => item.track);
-                    populateSpotifyTrackList();
-                } else {
-                    console.error('No track items in Spotify response:', data);
+        }, 1000);
+    }
+
+    // Update your fetchSpotifyTracks function
+    async function fetchSpotifyTracks() {
+        if (!spotifyAccessToken) {
+            console.error('No access token available');
+            return;
+        }
+
+        try {
+            const response = await fetch('https://api.spotify.com/v1/me/tracks?limit=50', {
+                headers: {
+                    'Authorization': `Bearer ${spotifyAccessToken}`
                 }
-            })
-            .catch(error => {
-                console.error('Error fetching Spotify tracks:', error);
             });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            spotifyTracks = data.items.map(item => item.track);
+            console.log('Fetched tracks:', spotifyTracks.length);
+
+            // Make sure the track list container exists and is visible
+            if (spotifyTrackList) {
+                spotifyTrackList.style.display = 'block';
+                populateSpotifyTrackList();
+            } else {
+                console.error('Spotify track list element not found');
+            }
+        } catch (error) {
+            console.error('Error fetching Spotify tracks:', error);
+            // Handle token expiration
+            if (error.message.includes('401')) {
+                handleSpotifyAuthError();
+            }
+        }
     }
 
     function populateSpotifyTrackList() {
         if (!spotifyTrackList) return;
-        
+
         spotifyTrackList.innerHTML = '';
 
         spotifyTracks.forEach((track, index) => {
@@ -350,7 +427,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function playSpotifyTrack(index) {
-        if (!spotifyPlayer || !deviceId || index < 0 || index >= spotifyTracks.length) return;
+        if (!spotifyPlayer || !deviceId || index < 0 || index >= spotifyTracks.length) {
+            console.error('Invalid playback conditions');
+            return;
+        }
 
         currentSpotifyTrackIndex = index;
         const trackUri = spotifyTracks[index].uri;
@@ -362,25 +442,33 @@ document.addEventListener('DOMContentLoaded', function () {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                uris: [trackUri]
+                uris: [trackUri],
+                position_ms: 0 // Start from beginning
             })
         })
-            .then(() => {
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => {
+                        throw new Error(err.error.message || 'Playback failed');
+                    });
+                }
                 isPlaying = true;
                 updatePlayButton();
                 updateActiveSpotifyTrack(index);
                 if (currentTrackTitle) {
                     currentTrackTitle.textContent = `${spotifyTracks[index].name} - ${spotifyTracks[index].artists.map(artist => artist.name).join(', ')}`;
                 }
+                console.log('Playing Spotify track:', spotifyTracks[index].name);
             })
             .catch(error => {
                 console.error('Error playing Spotify track:', error);
+                alert('Failed to play track: ' + error.message);
             });
     }
 
     function updateActiveSpotifyTrack(index) {
         if (!spotifyTrackList) return;
-        
+
         const spotifyTrackItems = spotifyTrackList.querySelectorAll('.spotify-track-item');
         spotifyTrackItems.forEach((item, i) => {
             if (i === index) {
@@ -429,6 +517,21 @@ document.addEventListener('DOMContentLoaded', function () {
         isSpotifyActive = useSpotify;
         saveSettings();
 
+        // Update EQ controls UI
+        const eqControls = document.querySelector('.custom-frequencies');
+        if (useSpotify) {
+            eqControls.classList.add('spotify-eq');
+            // Add a tooltip or indicator
+            const indicator = document.createElement('div');
+            indicator.className = 'eq-mode-indicator';
+            indicator.textContent = 'EQ: Spotify Mode';
+            eqControls.appendChild(indicator);
+        } else {
+            eqControls.classList.remove('spotify-eq');
+            const indicator = document.querySelector('.eq-mode-indicator');
+            if (indicator) indicator.remove();
+        }
+
         if (useSpotify) {
             if (localSourceBtn) localSourceBtn.classList.remove('active');
             if (spotifySourceBtn) spotifySourceBtn.classList.add('active');
@@ -453,25 +556,66 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // Audio Player Functions
-    function togglePlay() {
+    async function togglePlay() {
         if (isSpotifyActive) {
-            if (spotifyPlayer) {
-                if (isPlaying) {
-                    spotifyPlayer.pause();
-                } else {
-                    // If no track is selected, play the first one
-                    if (spotifyTracks.length > 0 && currentSpotifyTrackIndex === -1) {
-                        playSpotifyTrack(0);
+            // Check if player is ready
+            if (!spotifyPlayer || !deviceId) {
+                console.error('Spotify player not ready');
+                alert('Spotify player not ready. Please try again.');
+                return;
+            }
+    
+            try {
+                // Get current playback state
+                const state = await spotifyPlayer.getCurrentState();
+                
+                if (!state) {
+                    console.log('No active playback - starting first track');
+                    if (spotifyTracks.length > 0) {
+                        // Try to play first track if we have tracks
+                        await playSpotifyTrack(0);
                     } else {
-                        spotifyPlayer.resume();
+                        // If no tracks, try to resume playback (might work if there was previous playback)
+                        await spotifyPlayer.resume();
                     }
+                    return;
                 }
-                isPlaying = !isPlaying;
+    
+                // Toggle play/pause based on current state
+                if (state.paused) {
+                    await spotifyPlayer.resume();
+                    console.log('Playback resumed');
+                    isPlaying = true;
+                } else {
+                    await spotifyPlayer.pause();
+                    console.log('Playback paused');
+                    isPlaying = false;
+                }
+                
                 updatePlayButton();
+                
+                // Update UI with current state
+                updatePlayerUIFromSpotifyState(state);
+                
+            } catch (error) {
+                console.error('Playback control error:', error);
+                
+                // Handle specific error cases
+                if (error.message.includes('NO_ACTIVE_DEVICE')) {
+                    alert('Please open Spotify on another device and select this app as playback device');
+                } else if (error.message.includes('PREMIUM_REQUIRED')) {
+                    alert('Spotify Premium account required for playback');
+                } else {
+                    alert('Playback error: ' + error.message);
+                }
             }
         } else {
-            if (tracks.length === 0) return;
-
+            // Local file playback logic
+            if (tracks.length === 0) {
+                console.log('No tracks available');
+                return;
+            }
+    
             if (isPlaying) {
                 pauseTrack();
             } else {
@@ -480,68 +624,179 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function playPrevious() {
+    async function playPrevious() {
         if (isSpotifyActive) {
-            if (spotifyPlayer) {
-                if (spotifyPlayerState?.position > 3000) {
-                    // If more than 3 seconds into the song, seek to start
-                    spotifyPlayer.seek(0);
+            // Validate player readiness
+            if (!spotifyPlayer || !deviceId) {
+                console.error('Spotify player not ready');
+                alert('Player not ready. Please try again.');
+                return;
+            }
+    
+            try {
+                const state = await spotifyPlayer.getCurrentState();
+                
+                if (!state) {
+                    console.error('No playback state available');
+                    // If no state but we have tracks, play the last one
+                    if (spotifyTracks.length > 0) {
+                        const newIndex = (currentSpotifyTrackIndex - 1 + spotifyTracks.length) % spotifyTracks.length;
+                        await playSpotifyTrack(newIndex);
+                    }
+                    return;
+                }
+    
+                // If >3 seconds into song, restart current track
+                if (state.position > 3000) {
+                    await spotifyPlayer.seek(0);
+                    console.log('Restarted current track');
+                    return;
+                }
+    
+                // Go to previous track with boundary checking
+                let newIndex = currentSpotifyTrackIndex - 1;
+                if (newIndex < 0) {
+                    if (isLooping) {
+                        newIndex = spotifyTracks.length - 1; // Wrap around if looping
+                    } else {
+                        newIndex = 0; // Stay on first track
+                        await spotifyPlayer.seek(0); // Restart first track
+                        return;
+                    }
+                }
+    
+                await playSpotifyTrack(newIndex);
+                
+            } catch (error) {
+                console.error('Previous track error:', error);
+                
+                // Handle specific error cases
+                if (error.message.includes('NO_ACTIVE_DEVICE')) {
+                    alert('Please open Spotify on another device and select this player');
+                } else if (error.message.includes('PREMIUM_REQUIRED')) {
+                    alert('Spotify Premium required for this feature');
                 } else {
-                    // Go to previous track
-                    const newIndex = (currentSpotifyTrackIndex - 1 + spotifyTracks.length) % spotifyTracks.length;
-                    playSpotifyTrack(newIndex);
+                    alert('Failed to go to previous track: ' + error.message);
                 }
             }
         } else {
-            if (tracks.length === 0) return;
-
-            if (audioPlayer && audioPlayer.currentTime > 3) {
-                // If more than 3 seconds into the song, restart current track
+            // Local file playback logic
+            if (tracks.length === 0) {
+                console.log('No tracks available');
+                return;
+            }
+    
+            if (audioPlayer.currentTime > 3) {
+                // Restart current track if >3 seconds in
                 audioPlayer.currentTime = 0;
             } else {
-                // Go to previous track
-                currentTrackIndex = (currentTrackIndex - 1 + tracks.length) % tracks.length;
+                // Go to previous track with boundary checking
+                currentTrackIndex--;
+                if (currentTrackIndex < 0) {
+                    if (isLooping) {
+                        currentTrackIndex = tracks.length - 1; // Wrap around
+                    } else {
+                        currentTrackIndex = 0; // Stay on first track
+                        audioPlayer.currentTime = 0; // Restart
+                        return;
+                    }
+                }
                 loadTrack(currentTrackIndex);
                 playTrack();
             }
         }
     }
 
-    function playNext() {
+    async function playNext() {
         if (isSpotifyActive) {
-            if (spotifyPlayer) {
+            // Validate player readiness
+            if (!spotifyPlayer || !deviceId) {
+                console.error('Spotify player not ready');
+                alert('Player not ready. Please try again.');
+                return;
+            }
+    
+            try {
+                // Calculate next track index based on shuffle mode
+                let newIndex;
                 if (isShuffling) {
-                    // Random track
-                    let newIndex;
-                    do {
-                        newIndex = Math.floor(Math.random() * spotifyTracks.length);
-                    } while (newIndex === currentSpotifyTrackIndex && spotifyTracks.length > 1);
-
-                    playSpotifyTrack(newIndex);
+                    // Improved shuffle logic that prevents immediate repeats
+                    if (spotifyTracks.length <= 1) {
+                        newIndex = 0;
+                    } else {
+                        const previousIndex = currentSpotifyTrackIndex;
+                        do {
+                            newIndex = Math.floor(Math.random() * spotifyTracks.length);
+                        } while (newIndex === previousIndex);
+                    }
                 } else {
-                    // Next track in order
-                    const newIndex = (currentSpotifyTrackIndex + 1) % spotifyTracks.length;
-                    playSpotifyTrack(newIndex);
+                    // Sequential play with loop consideration
+                    newIndex = (currentSpotifyTrackIndex + 1) % spotifyTracks.length;
+                    if (newIndex === 0 && !isLooping) {
+                        // Reached end of playlist and not looping
+                        console.log('Reached end of playlist');
+                        await spotifyPlayer.pause();
+                        isPlaying = false;
+                        updatePlayButton();
+                        return;
+                    }
+                }
+    
+                // Play the selected track
+                await playSpotifyTrack(newIndex);
+    
+            } catch (error) {
+                console.error('Next track error:', error);
+                
+                // Handle specific error cases
+                if (error.message.includes('NO_ACTIVE_DEVICE')) {
+                    alert('Please open Spotify on another device and select this player');
+                } else if (error.message.includes('PREMIUM_REQUIRED')) {
+                    alert('Spotify Premium required for this feature');
+                } else {
+                    alert('Failed to go to next track: ' + error.message);
                 }
             }
         } else {
-            if (tracks.length === 0) return;
-
-            if (isShuffling) {
-                // Random track
-                let newIndex;
-                do {
-                    newIndex = Math.floor(Math.random() * tracks.length);
-                } while (newIndex === currentTrackIndex && tracks.length > 1);
-
-                currentTrackIndex = newIndex;
-            } else {
-                // Next track in order
-                currentTrackIndex = (currentTrackIndex + 1) % tracks.length;
+            // Local file playback logic
+            if (tracks.length === 0) {
+                console.log('No tracks available');
+                return;
             }
-
-            loadTrack(currentTrackIndex);
-            playTrack();
+    
+            try {
+                // Calculate next track index
+                let newIndex;
+                if (isShuffling) {
+                    // Shuffle logic for local files
+                    if (tracks.length <= 1) {
+                        newIndex = 0;
+                    } else {
+                        const previousIndex = currentTrackIndex;
+                        do {
+                            newIndex = Math.floor(Math.random() * tracks.length);
+                        } while (newIndex === previousIndex);
+                    }
+                } else {
+                    // Sequential play for local files
+                    newIndex = (currentTrackIndex + 1) % tracks.length;
+                    if (newIndex === 0 && !isLooping) {
+                        // Reached end of playlist and not looping
+                        console.log('Reached end of playlist');
+                        pauseTrack();
+                        return;
+                    }
+                }
+    
+                // Update and play the track
+                currentTrackIndex = newIndex;
+                loadTrack(currentTrackIndex);
+                playTrack();
+    
+            } catch (error) {
+                console.error('Local playback error:', error);
+                alert('Failed to play next track: ' + error.message);
+            }
         }
     }
 
@@ -573,7 +828,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateVolumeIcon(volume) {
         if (!volumeIcon) return;
-        
+
         if (volume === 0) {
             volumeIcon.className = 'fas fa-volume-mute volume-icon';
         } else if (volume < 0.5) {
@@ -689,7 +944,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Check if we have the custom-frequencies container
             const customFreqContainer = document.querySelector('.custom-frequencies');
             if (!customFreqContainer) return;
-            
+
             // Create a container for EQ sliders
             eqSliders = document.createElement('div');
             eqSliders.id = 'eqSliders';
@@ -754,6 +1009,21 @@ document.addEventListener('DOMContentLoaded', function () {
                     // Apply gain to the filter
                     if (equalizer[i]) {
                         equalizer[i].gain.value = value;
+                    }
+
+                    // If Spotify is active, update Spotify's equalizer
+                    if (isSpotifyActive && spotifyPlayer) {
+                        const bands = [];
+                        for (let j = 0; j < freqBands.length; j++) {
+                            const slider = document.getElementById(`eq-slider-${j}`);
+                            if (slider) {
+                                bands.push({
+                                    band: j,
+                                    gain: parseFloat(slider.value)
+                                });
+                            }
+                        }
+                        spotifyPlayer.setEqualizer({ bands });
                     }
 
                     // Save settings when EQ is adjusted
@@ -1047,7 +1317,13 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function drawVisualizations() {
-        if (!analyser) return;
+        if (!analyser) {
+            // Show simulated visualization for Spotify
+            if (isSpotifyActive) {
+                drawSimulatedVisualization();
+            }
+            return;
+        }
 
         const waveformCtx = waveformCanvas.getContext('2d');
         const equalizerCtx = equalizerCanvas.getContext('2d');
@@ -1074,6 +1350,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
             // Draw frequency bars
             drawFrequencyBars(equalizerCtx, dataArray);
+        }
+
+        draw();
+    }
+
+    function drawSimulatedVisualization() {
+        // Create simulated data that moves with the music
+        const waveformCtx = waveformCanvas.getContext('2d');
+        const equalizerCtx = equalizerCanvas.getContext('2d');
+
+        function draw() {
+            animationFrameId = requestAnimationFrame(draw);
+
+            // Create simulated data based on time
+            const time = Date.now() / 1000;
+            const simulatedData = new Array(256).fill(0).map((_, i) => {
+                return 128 + Math.sin(time * 2 + i / 20) * 50 * Math.random();
+            });
+
+            drawWaveform(waveformCtx, simulatedData);
+            drawFrequencyBars(equalizerCtx, simulatedData);
         }
 
         draw();
@@ -1171,6 +1468,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 }
             });
+        }
+
+        // If Spotify is active, reset Spotify's equalizer too
+        if (isSpotifyActive && spotifyPlayer) {
+            const bands = [];
+            for (let i = 0; i < freqBands.length; i++) {
+                bands.push({
+                    band: i,
+                    gain: 0
+                });
+            }
+            spotifyPlayer.setEqualizer({ bands });
         }
 
         // Save settings
