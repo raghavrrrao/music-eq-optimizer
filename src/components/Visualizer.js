@@ -1,25 +1,48 @@
-// frontend/src/visualizer.js
-export const setupVisualizer = (audioContext, source) => {
-    const analyser = audioContext.createAnalyser();
-    source.connect(analyser);
-    analyser.fftSize = 256;
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
+// src/components/Visualizer.js
+import React, { useEffect, useRef } from 'react';
 
-    const canvas = document.getElementById('visualizer');
-    const canvasCtx = canvas.getContext('2d');
+const Visualizer = ({ audioContext, audioSource }) => {
+    const canvasRef = useRef(null);
 
-    const draw = () => {
-        requestAnimationFrame(draw);
-        analyser.getByteFrequencyData(dataArray);
-        canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-        dataArray.forEach((value, i) => {
-            const barHeight = value;
-            const x = i * 3;
-            canvasCtx.fillStyle = 'rgb(' + (value + 100) + ',50,50)';
-            canvasCtx.fillRect(x, canvas.height - barHeight / 2, 2, barHeight / 2);
-        });
-    };
+    useEffect(() => {
+        if (!audioContext || !audioSource) return;
 
-    draw();
+        const analyser = audioContext.createAnalyser();
+        audioSource.connect(analyser);
+        analyser.connect(audioContext.destination);
+
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+
+        const draw = () => {
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            analyser.getByteFrequencyData(dataArray);
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const barWidth = (canvas.width / bufferLength) * 2.5;
+            let barHeight;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i];
+
+                ctx.fillStyle = 'rgb(' + (barHeight + 100) + ',50,50)';
+                ctx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight);
+
+                x += barWidth + 1;
+            }
+
+            requestAnimationFrame(draw);
+        };
+
+        draw();
+    }, [audioContext, audioSource]);
+
+    return <canvas ref={canvasRef} width="500" height="200" />;
 };
+
+export default Visualizer;

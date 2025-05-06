@@ -1,37 +1,35 @@
-// frontend/src/App.js
-import React, { useRef } from 'react';
-import axios from 'axios';
+// src/App.js
+import React, { useEffect, useState } from 'react';
+import Visualizer from './components/Visualizer';
 
 function App() {
-  const audioRef = useRef(null);
+  const [audioContext, setAudioContext] = useState(null);
+  const [audioSource, setAudioSource] = useState(null);
+  const [audioFile, setAudioFile] = useState(null);
 
-  const handleFileChange = async (event) => {
-    const file = event.target.files[0];
-    if (file) {
-      const objectUrl = URL.createObjectURL(file);
-      const audioElement = audioRef.current;
-      audioElement.src = objectUrl;
-      audioElement.play();
+  useEffect(() => {
+    if (audioFile) {
+      const context = new (window.AudioContext || window.webkitAudioContext)();
+      setAudioContext(context);
 
-      const formData = new FormData();
-      formData.append('audio', file);
+      const audio = new Audio(URL.createObjectURL(audioFile));
+      audio.crossOrigin = 'anonymous';
+      const source = context.createMediaElementSource(audio);
+      setAudioSource(source);
 
-      try {
-        const response = await axios.post('http://localhost:5000/predict_eq', formData);
-        const { low, mid, high } = response.data;
-        // Apply EQ settings using Web Audio API
-        setupAudioGraph(audioElement, { low, mid, high });
-      } catch (error) {
-        console.error('Error predicting EQ settings:', error);
-      }
+      audio.play();
     }
+  }, [audioFile]);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    setAudioFile(file);
   };
 
   return (
-    <div className="App">
-      <h1>Music EQ Optimizer</h1>
+    <div>
       <input type="file" accept="audio/*" onChange={handleFileChange} />
-      <audio ref={audioRef} controls />
+      {audioContext && audioSource && <Visualizer audioContext={audioContext} audioSource={audioSource} />}
     </div>
   );
 }
