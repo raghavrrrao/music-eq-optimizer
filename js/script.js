@@ -1,3 +1,11 @@
+// Define onSpotifyWebPlaybackSDKReady globally first (before DOMContentLoaded)
+window.onSpotifyWebPlaybackSDKReady = () => {
+    console.log('Spotify Web Playback SDK Ready');
+    if (window.initializeSpotifyPlayerCallback) {
+        window.initializeSpotifyPlayerCallback();
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function () {
     // DOM Elements
     const fileInput = document.getElementById('fileInput');
@@ -16,10 +24,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const currentTrackTitle = document.getElementById('currentTrack');
     const waveformCanvas = document.getElementById('waveformCanvas');
     const equalizerCanvas = document.getElementById('equalizerCanvas');
+    
+    // Check if elements exist before adding event listeners
     const applyFreqBtn = document.getElementById('applyFreqBtn');
     const resetEqBtn = document.getElementById('resetEqBtn');
     const loginBtn = document.getElementById('loginBtn');
     const authContainer = document.getElementById('authContainer');
+    
+    // These elements might not exist in the HTML yet
     const localSourceBtn = document.getElementById('localSourceBtn');
     const spotifySourceBtn = document.getElementById('spotifySourceBtn');
     const spotifyTrackList = document.getElementById('spotifyTrackList');
@@ -45,7 +57,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let currentSpotifyTrackIndex = 0;
     let isSpotifyActive = false;
     let deviceId;
-    let spotifyAccessToken = 'BQD6LWzMg6k_jPFh3Ot2vZqW_2TYQUjJQ9zm9vjllK3aAE8BNegKJhXlnf9DlfQJaPYyAMRvvf9lrXKVLSmRIaHlZVIKM3SCUzIjDFGzh_W_1GJWsLAVHXFAsNSYdqo9fPfiH2aTazty-vkoX3yr_Gy40vm2oeFYuhMO-SlrlLYnwcqE2ELJ1tmvz7juBVyQGfsHoBAhGOOgEtO8l6V94ys1OjwgcigN35eDb2jTma4BRoIJ9-RpqKyWF4ndvYIW82h-';
+    let spotifyAccessToken = 'BQC1pWC4VJrEgrExAk4j6t_sUZCcXQiQjLSuLY43__C2ZZwrBvQ1Ew8Ev8l8J7taVZrY1CHVp5rcZ3w5JDdyb3o3NMMi19YtTTNYHal7hSI2CdXQlwgLOSbl8l8Kq_UMsQnNluBMQWiDVfn5w9YKWSADf820Oml_XwPkW97ZE-ldqX4kep5wddvPwkpbVBiSaTm8upWqCAGhrifxL5PGuwdNARauyGsMQIMG2BSDbpoed-VmHiRHrkUCvb8TpvVcszcM';
     let spotifyPlayerState = null;
 
     // Default EQ bands (8 bands)
@@ -60,24 +72,26 @@ document.addEventListener('DOMContentLoaded', function () {
     // Load saved settings
     loadSettings();
 
-    // Event Listeners
-    fileInput.addEventListener('change', handleFileSelect);
-    playBtn.addEventListener('click', togglePlay);
-    prevBtn.addEventListener('click', playPrevious);
-    nextBtn.addEventListener('click', playNext);
-    loopBtn.addEventListener('click', toggleLoop);
-    shuffleBtn.addEventListener('click', toggleShuffle);
-    progressBar.addEventListener('input', seekTrack);
-    volumeSlider.addEventListener('input', adjustVolume);
-    volumeIcon.addEventListener('click', toggleMute);
-    audioPlayer.addEventListener('ended', handleTrackEnd);
-    audioPlayer.addEventListener('timeupdate', updateProgress);
-    audioPlayer.addEventListener('loadedmetadata', updateTotalTime);
-    applyFreqBtn.addEventListener('click', applyCustomFrequencies);
-    resetEqBtn.addEventListener('click', resetEqualizer);
-    loginBtn.addEventListener('click', handleSpotifyLogin);
-    localSourceBtn.addEventListener('click', () => switchSource(false));
-    spotifySourceBtn.addEventListener('click', () => switchSource(true));
+    // Add event listeners only if elements exist
+    if (fileInput) fileInput.addEventListener('change', handleFileSelect);
+    if (playBtn) playBtn.addEventListener('click', togglePlay);
+    if (prevBtn) prevBtn.addEventListener('click', playPrevious);
+    if (nextBtn) nextBtn.addEventListener('click', playNext);
+    if (loopBtn) loopBtn.addEventListener('click', toggleLoop);
+    if (shuffleBtn) shuffleBtn.addEventListener('click', toggleShuffle);
+    if (progressBar) progressBar.addEventListener('input', seekTrack);
+    if (volumeSlider) volumeSlider.addEventListener('input', adjustVolume);
+    if (volumeIcon) volumeIcon.addEventListener('click', toggleMute);
+    if (audioPlayer) {
+        audioPlayer.addEventListener('ended', handleTrackEnd);
+        audioPlayer.addEventListener('timeupdate', updateProgress);
+        audioPlayer.addEventListener('loadedmetadata', updateTotalTime);
+    }
+    if (applyFreqBtn) applyFreqBtn.addEventListener('click', applyCustomFrequencies);
+    if (resetEqBtn) resetEqBtn.addEventListener('click', resetEqualizer);
+    if (loginBtn) loginBtn.addEventListener('click', handleSpotifyLogin);
+    if (localSourceBtn) localSourceBtn.addEventListener('click', () => switchSource(false));
+    if (spotifySourceBtn) spotifySourceBtn.addEventListener('click', () => switchSource(true));
 
     // Check for Spotify access token in URL (callback from login)
     checkSpotifyAuthCallback();
@@ -85,16 +99,24 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize Spotify Web Playback SDK if token exists
     if (localStorage.getItem('spotifyAccessToken')) {
         spotifyAccessToken = localStorage.getItem('spotifyAccessToken');
-        initializeSpotifyPlayer();
+        
+        // Store the initialization function for when the SDK is ready
+        window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
+        
+        // If Spotify SDK is already loaded, initialize now 
+        if (window.Spotify) {
+            initializeSpotifyPlayer();
+        }
+        
         fetchSpotifyTracks();
-    } else {
+    } else if (authContainer) {
         authContainer.style.display = 'block';
     }
 
     // Settings Management
     function saveSettings() {
         const settings = {
-            volume: audioPlayer.volume,
+            volume: audioPlayer ? audioPlayer.volume : 0.5,
             isMuted: isMuted,
             isLooping: isLooping,
             isShuffling: isShuffling,
@@ -107,11 +129,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function loadSettings() {
         const savedSettings = localStorage.getItem('audioPlayerSettings');
-        if (savedSettings) {
+        if (savedSettings && audioPlayer) {
             const settings = JSON.parse(savedSettings);
 
             // Restore volume
-            volumeSlider.value = settings.volume;
+            if (volumeSlider) volumeSlider.value = settings.volume;
             audioPlayer.volume = settings.volume;
 
             // Restore mute state
@@ -119,7 +141,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (isMuted) {
                 lastVolume = settings.volume;
                 audioPlayer.volume = 0;
-                volumeSlider.value = 0;
+                if (volumeSlider) volumeSlider.value = 0;
                 updateVolumeIcon(0);
             } else {
                 updateVolumeIcon(settings.volume);
@@ -128,11 +150,11 @@ document.addEventListener('DOMContentLoaded', function () {
             // Restore loop state
             isLooping = settings.isLooping;
             audioPlayer.loop = isLooping;
-            loopBtn.classList.toggle('active', isLooping);
+            if (loopBtn) loopBtn.classList.toggle('active', isLooping);
 
             // Restore shuffle state
             isShuffling = settings.isShuffling;
-            shuffleBtn.classList.toggle('active', isShuffling);
+            if (shuffleBtn) shuffleBtn.classList.toggle('active', isShuffling);
 
             // Restore frequency bands
             if (settings.freqBands && settings.freqBands.length) {
@@ -167,12 +189,18 @@ document.addEventListener('DOMContentLoaded', function () {
             // Clear the hash from the URL
             window.history.pushState({}, document.title, window.location.pathname);
 
-            // Initialize the player
-            initializeSpotifyPlayer();
+            // Store the initialization function for when the SDK is ready
+            window.initializeSpotifyPlayerCallback = initializeSpotifyPlayer;
+            
+            // If Spotify SDK is already loaded, initialize now
+            if (window.Spotify) {
+                initializeSpotifyPlayer();
+            }
+            
             fetchSpotifyTracks();
 
             // Hide login button
-            authContainer.style.display = 'none';
+            if (authContainer) authContainer.style.display = 'none';
         }
     }
 
@@ -187,7 +215,7 @@ document.addEventListener('DOMContentLoaded', function () {
         spotifyPlayer = new Spotify.Player({
             name: 'Personal Audio Player',
             getOAuthToken: cb => { cb(spotifyAccessToken); },
-            volume: volumeSlider.value
+            volume: volumeSlider ? volumeSlider.value : 0.5
         });
 
         // Ready event
@@ -217,7 +245,7 @@ document.addEventListener('DOMContentLoaded', function () {
             console.error('Authentication Error:', message);
             localStorage.removeItem('spotifyAccessToken');
             localStorage.removeItem('spotifyTokenExpiry');
-            authContainer.style.display = 'block';
+            if (authContainer) authContainer.style.display = 'block';
         });
 
         spotifyPlayer.addListener('account_error', ({ message }) => {
@@ -247,8 +275,12 @@ document.addEventListener('DOMContentLoaded', function () {
         })
             .then(response => response.json())
             .then(data => {
-                spotifyTracks = data.items.map(item => item.track);
-                populateSpotifyTrackList();
+                if (data.items) {
+                    spotifyTracks = data.items.map(item => item.track);
+                    populateSpotifyTrackList();
+                } else {
+                    console.error('No track items in Spotify response:', data);
+                }
             })
             .catch(error => {
                 console.error('Error fetching Spotify tracks:', error);
@@ -256,6 +288,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function populateSpotifyTrackList() {
+        if (!spotifyTrackList) return;
+        
         spotifyTrackList.innerHTML = '';
 
         spotifyTracks.forEach((track, index) => {
@@ -312,7 +346,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 isPlaying = true;
                 updatePlayButton();
                 updateActiveSpotifyTrack(index);
-                currentTrackTitle.textContent = `${spotifyTracks[index].name} - ${spotifyTracks[index].artists.map(artist => artist.name).join(', ')}`;
+                if (currentTrackTitle) {
+                    currentTrackTitle.textContent = `${spotifyTracks[index].name} - ${spotifyTracks[index].artists.map(artist => artist.name).join(', ')}`;
+                }
             })
             .catch(error => {
                 console.error('Error playing Spotify track:', error);
@@ -320,6 +356,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateActiveSpotifyTrack(index) {
+        if (!spotifyTrackList) return;
+        
         const spotifyTrackItems = spotifyTrackList.querySelectorAll('.spotify-track-item');
         spotifyTrackItems.forEach((item, i) => {
             if (i === index) {
@@ -338,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function () {
         updatePlayButton();
 
         // Update progress bar
-        if (state.position && state.duration) {
+        if (state.position && state.duration && progressBar && currentTime && totalTime) {
             const progress = (state.position / state.duration) * 100;
             progressBar.value = progress;
             currentTime.textContent = formatTime(state.position / 1000);
@@ -346,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         // Update current track info
-        if (state.track_window?.current_track) {
+        if (state.track_window?.current_track && currentTrackTitle) {
             const track = state.track_window.current_track;
             currentTrackTitle.textContent = `${track.name} - ${track.artists.map(artist => artist.name).join(', ')}`;
 
@@ -361,7 +399,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function switchSource(useSpotify) {
         if (useSpotify && !spotifyAccessToken) {
-            authContainer.style.display = 'block';
+            if (authContainer) authContainer.style.display = 'block';
             return;
         }
 
@@ -369,20 +407,20 @@ document.addEventListener('DOMContentLoaded', function () {
         saveSettings();
 
         if (useSpotify) {
-            localSourceBtn.classList.remove('active');
-            spotifySourceBtn.classList.add('active');
-            trackList.style.display = 'none';
-            spotifyTrackList.style.display = 'block';
+            if (localSourceBtn) localSourceBtn.classList.remove('active');
+            if (spotifySourceBtn) spotifySourceBtn.classList.add('active');
+            if (trackList) trackList.style.display = 'none';
+            if (spotifyTrackList) spotifyTrackList.style.display = 'block';
 
             // Pause local player if playing
             if (isPlaying && !isSpotifyActive) {
                 pauseTrack();
             }
         } else {
-            localSourceBtn.classList.add('active');
-            spotifySourceBtn.classList.remove('active');
-            trackList.style.display = 'block';
-            spotifyTrackList.style.display = 'none';
+            if (localSourceBtn) localSourceBtn.classList.add('active');
+            if (spotifySourceBtn) spotifySourceBtn.classList.remove('active');
+            if (trackList) trackList.style.display = 'block';
+            if (spotifyTrackList) spotifyTrackList.style.display = 'none';
 
             // Pause Spotify player if playing
             if (isPlaying && isSpotifyActive && spotifyPlayer) {
@@ -390,22 +428,6 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
     }
-
-    window.onSpotifyWebPlaybackSDKReady = () => {
-        const token = 'BQD6LWzMg6k_jPFh3Ot2vZqW_2TYQUjJQ9zm9vjllK3aAE8BNegKJhXlnf9DlfQJaPYyAMRvvf9lrXKVLSmRIaHlZVIKM3SCUzIjDFGzh_W_1GJWsLAVHXFAsNSYdqo9fPfiH2aTazty-vkoX3yr_Gy40vm2oeFYuhMO-SlrlLYnwcqE2ELJ1tmvz7juBVyQGfsHoBAhGOOgEtO8l6V94ys1OjwgcigN35eDb2jTma4BRoIJ9-RpqKyWF4ndvYIW82h-';
-        const player = new Spotify.Player({
-            name: 'Web Playback SDK Player',
-            getOAuthToken: cb => { cb(token); },
-            volume: 0.5
-        });
-
-        // Add event listeners and connect player
-        player.addListener('ready', ({ device_id }) => {
-            console.log('Ready with Device ID', device_id);
-        });
-
-        player.connect();
-    };
 
     // Audio Player Functions
     function togglePlay() {
@@ -450,7 +472,7 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             if (tracks.length === 0) return;
 
-            if (audioPlayer.currentTime > 3) {
+            if (audioPlayer && audioPlayer.currentTime > 3) {
                 // If more than 3 seconds into the song, restart current track
                 audioPlayer.currentTime = 0;
             } else {
@@ -503,20 +525,22 @@ document.addEventListener('DOMContentLoaded', function () {
     function toggleMute() {
         isMuted = !isMuted;
 
-        if (isMuted) {
-            // Store current volume before muting
-            lastVolume = audioPlayer.volume > 0 ? audioPlayer.volume : 0.5;
-            audioPlayer.volume = 0;
-            volumeSlider.value = 0;
-            if (gainNode) {
-                gainNode.gain.value = 0;
-            }
-        } else {
-            // Restore volume
-            audioPlayer.volume = lastVolume;
-            volumeSlider.value = lastVolume;
-            if (gainNode) {
-                gainNode.gain.value = lastVolume;
+        if (audioPlayer) {
+            if (isMuted) {
+                // Store current volume before muting
+                lastVolume = audioPlayer.volume > 0 ? audioPlayer.volume : 0.5;
+                audioPlayer.volume = 0;
+                if (volumeSlider) volumeSlider.value = 0;
+                if (gainNode) {
+                    gainNode.gain.value = 0;
+                }
+            } else {
+                // Restore volume
+                audioPlayer.volume = lastVolume;
+                if (volumeSlider) volumeSlider.value = lastVolume;
+                if (gainNode) {
+                    gainNode.gain.value = lastVolume;
+                }
             }
         }
 
@@ -525,6 +549,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function updateVolumeIcon(volume) {
+        if (!volumeIcon) return;
+        
         if (volume === 0) {
             volumeIcon.className = 'fas fa-volume-mute volume-icon';
         } else if (volume < 0.5) {
@@ -535,7 +561,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setupAudioContext() {
-        if (!audioContext) {
+        if (!audioContext && window.AudioContext) {
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             analyser = audioContext.createAnalyser();
             gainNode = audioContext.createGain();
@@ -547,35 +573,37 @@ document.addEventListener('DOMContentLoaded', function () {
             // Create EQ bands
             setupEqualizer();
 
-            // Connect nodes
-            source = audioContext.createMediaElementSource(audioPlayer);
-            source.connect(equalizer[0]);
+            if (audioPlayer) {
+                // Connect nodes
+                source = audioContext.createMediaElementSource(audioPlayer);
+                source.connect(equalizer[0]);
 
-            for (let i = 0; i < equalizer.length - 1; i++) {
-                equalizer[i].connect(equalizer[i + 1]);
-            }
+                for (let i = 0; i < equalizer.length - 1; i++) {
+                    equalizer[i].connect(equalizer[i + 1]);
+                }
 
-            equalizer[equalizer.length - 1].connect(gainNode);
-            gainNode.connect(analyser);
-            analyser.connect(audioContext.destination);
+                equalizer[equalizer.length - 1].connect(gainNode);
+                gainNode.connect(analyser);
+                analyser.connect(audioContext.destination);
 
-            // Restore saved EQ settings if available
-            const savedSettings = localStorage.getItem('audioPlayerSettings');
-            if (savedSettings) {
-                const settings = JSON.parse(savedSettings);
-                if (settings.eqSettings && settings.eqSettings.length === equalizer.length) {
-                    settings.eqSettings.forEach((gain, i) => {
-                        equalizer[i].gain.value = gain;
-                        // Also update EQ sliders UI
-                        const slider = document.getElementById(`eq-slider-${i}`);
-                        if (slider) {
-                            slider.value = gain;
-                            const valueDisplay = document.getElementById(`eq-value-${i}`);
-                            if (valueDisplay) {
-                                valueDisplay.textContent = `${gain > 0 ? '+' : ''}${gain} dB`;
+                // Restore saved EQ settings if available
+                const savedSettings = localStorage.getItem('audioPlayerSettings');
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+                    if (settings.eqSettings && settings.eqSettings.length === equalizer.length) {
+                        settings.eqSettings.forEach((gain, i) => {
+                            equalizer[i].gain.value = gain;
+                            // Also update EQ sliders UI
+                            const slider = document.getElementById(`eq-slider-${i}`);
+                            if (slider) {
+                                slider.value = gain;
+                                const valueDisplay = document.getElementById(`eq-value-${i}`);
+                                if (valueDisplay) {
+                                    valueDisplay.textContent = `${gain > 0 ? '+' : ''}${gain} dB`;
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 }
             }
 
@@ -587,6 +615,8 @@ document.addEventListener('DOMContentLoaded', function () {
     function setupEqualizer() {
         // Clear existing equalizer
         equalizer = [];
+
+        if (!audioContext) return;
 
         // Create filters for each frequency band
         for (let i = 0; i < freqBands.length; i++) {
@@ -633,13 +663,17 @@ document.addEventListener('DOMContentLoaded', function () {
         // Check if we have an EQ container already
         let eqSliders = document.getElementById('eqSliders');
         if (!eqSliders) {
+            // Check if we have the custom-frequencies container
+            const customFreqContainer = document.querySelector('.custom-frequencies');
+            if (!customFreqContainer) return;
+            
             // Create a container for EQ sliders
             eqSliders = document.createElement('div');
             eqSliders.id = 'eqSliders';
             eqSliders.className = 'eq-sliders';
 
             // Add the EQ sliders to the custom frequencies section
-            document.querySelector('.custom-frequencies').insertBefore(eqSliders, document.querySelector('.eq-button-group'));
+            customFreqContainer.insertBefore(eqSliders, document.querySelector('.eq-button-group'));
 
             // Add a heading
             const heading = document.createElement('h4');
@@ -1022,7 +1056,6 @@ document.addEventListener('DOMContentLoaded', function () {
         draw();
     }
 
-    // Draw Waveform
     function drawWaveform(ctx, dataArray) {
         const width = ctx.canvas.width;
         const height = ctx.canvas.height;
@@ -1065,7 +1098,6 @@ document.addEventListener('DOMContentLoaded', function () {
         ctx.shadowColor = '#ff0000';
     }
 
-    // Draw Frequency Bars
     function drawFrequencyBars(ctx, dataArray) {
         const width = ctx.canvas.width;
         const height = ctx.canvas.height;
@@ -1100,7 +1132,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    // Reset Equalizer
     function resetEqualizer() {
         // Reset all equalizer bands to 0 gain
         if (equalizer.length > 0) {
@@ -1146,8 +1177,6 @@ document.addEventListener('DOMContentLoaded', function () {
             audioContext.close();
         }
     });
-
-
 
     // Initialize volume display on load
     updateVolumeIcon(audioPlayer.volume);
