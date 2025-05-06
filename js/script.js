@@ -135,6 +135,45 @@ document.addEventListener('DOMContentLoaded', function () {
         localStorage.setItem('audioPlayerSettings', JSON.stringify(settings));
     }
 
+    function generateRandomString(length) {
+        let text = '';
+        const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        for (let i = 0; i < length; i++) {
+            text += possible.charAt(Math.floor(Math.random() * possible.length));
+        }
+        return text;
+    }
+
+    function base64urlencode(str) {
+        return btoa(String.fromCharCode(...new Uint8Array(str)))
+            .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function generateCodeChallenge(codeVerifier) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(codeVerifier);
+        const digest = await crypto.subtle.digest('SHA-256', data);
+        return base64urlencode(digest);
+    }
+
+    document.getElementById("loginBtn").addEventListener("click", async () => {
+        const codeVerifier = generateRandomString(128);
+        const codeChallenge = await generateCodeChallenge(codeVerifier);
+        localStorage.setItem("code_verifier", codeVerifier);
+
+        const args = new URLSearchParams({
+            response_type: 'code',
+            client_id: SPOTIFY_CLIENT_ID,
+            scope: SPOTIFY_SCOPES,
+            redirect_uri: SPOTIFY_REDIRECT_URI,
+            code_challenge_method: 'S256',
+            code_challenge: codeChallenge
+        });
+
+        window.location = `https://accounts.spotify.com/authorize?${args.toString()}`;
+    });
+
+
     function loadSettings() {
         const savedSettings = localStorage.getItem('audioPlayerSettings');
         if (savedSettings && audioPlayer) {
@@ -564,11 +603,11 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Spotify player not ready. Please try again.');
                 return;
             }
-    
+
             try {
                 // Get current playback state
                 const state = await spotifyPlayer.getCurrentState();
-                
+
                 if (!state) {
                     console.log('No active playback - starting first track');
                     if (spotifyTracks.length > 0) {
@@ -580,7 +619,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return;
                 }
-    
+
                 // Toggle play/pause based on current state
                 if (state.paused) {
                     await spotifyPlayer.resume();
@@ -591,15 +630,15 @@ document.addEventListener('DOMContentLoaded', function () {
                     console.log('Playback paused');
                     isPlaying = false;
                 }
-                
+
                 updatePlayButton();
-                
+
                 // Update UI with current state
                 updatePlayerUIFromSpotifyState(state);
-                
+
             } catch (error) {
                 console.error('Playback control error:', error);
-                
+
                 // Handle specific error cases
                 if (error.message.includes('NO_ACTIVE_DEVICE')) {
                     alert('Please open Spotify on another device and select this app as playback device');
@@ -615,7 +654,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('No tracks available');
                 return;
             }
-    
+
             if (isPlaying) {
                 pauseTrack();
             } else {
@@ -632,10 +671,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Player not ready. Please try again.');
                 return;
             }
-    
+
             try {
                 const state = await spotifyPlayer.getCurrentState();
-                
+
                 if (!state) {
                     console.error('No playback state available');
                     // If no state but we have tracks, play the last one
@@ -645,14 +684,14 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                     return;
                 }
-    
+
                 // If >3 seconds into song, restart current track
                 if (state.position > 3000) {
                     await spotifyPlayer.seek(0);
                     console.log('Restarted current track');
                     return;
                 }
-    
+
                 // Go to previous track with boundary checking
                 let newIndex = currentSpotifyTrackIndex - 1;
                 if (newIndex < 0) {
@@ -664,12 +703,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
                 }
-    
+
                 await playSpotifyTrack(newIndex);
-                
+
             } catch (error) {
                 console.error('Previous track error:', error);
-                
+
                 // Handle specific error cases
                 if (error.message.includes('NO_ACTIVE_DEVICE')) {
                     alert('Please open Spotify on another device and select this player');
@@ -685,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('No tracks available');
                 return;
             }
-    
+
             if (audioPlayer.currentTime > 3) {
                 // Restart current track if >3 seconds in
                 audioPlayer.currentTime = 0;
@@ -715,7 +754,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 alert('Player not ready. Please try again.');
                 return;
             }
-    
+
             try {
                 // Calculate next track index based on shuffle mode
                 let newIndex;
@@ -741,13 +780,13 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
                 }
-    
+
                 // Play the selected track
                 await playSpotifyTrack(newIndex);
-    
+
             } catch (error) {
                 console.error('Next track error:', error);
-                
+
                 // Handle specific error cases
                 if (error.message.includes('NO_ACTIVE_DEVICE')) {
                     alert('Please open Spotify on another device and select this player');
@@ -763,7 +802,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 console.log('No tracks available');
                 return;
             }
-    
+
             try {
                 // Calculate next track index
                 let newIndex;
@@ -787,12 +826,12 @@ document.addEventListener('DOMContentLoaded', function () {
                         return;
                     }
                 }
-    
+
                 // Update and play the track
                 currentTrackIndex = newIndex;
                 loadTrack(currentTrackIndex);
                 playTrack();
-    
+
             } catch (error) {
                 console.error('Local playback error:', error);
                 alert('Failed to play next track: ' + error.message);
@@ -956,7 +995,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // Add a heading
             const heading = document.createElement('h4');
             heading.textContent = 'Adjust EQ';
-            heading.style.margin = '15px 0';
+            heading.style.margin = '40px 10px';
             heading.style.fontSize = '0.9rem';
             heading.style.color = 'var(--text-secondary)';
             eqSliders.appendChild(heading);
@@ -1513,3 +1552,78 @@ document.addEventListener('DOMContentLoaded', function () {
     // Initialize volume display on load
     updateVolumeIcon(audioPlayer.volume);
 });
+
+window.onload = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+
+    if (code) {
+        const accessToken = await getAccessToken(code);
+        localStorage.setItem('spotify_access_token', accessToken);
+        initializeSpotifyPlayer(accessToken);
+    } else {
+        const token = localStorage.getItem('spotify_access_token');
+        if (token) initializeSpotifyPlayer(token);
+    }
+
+    async function getAccessToken(code) {
+        const codeVerifier = localStorage.getItem('code_verifier');
+
+        const body = new URLSearchParams({
+            grant_type: 'authorization_code',
+            code: code,
+            redirect_uri: REDIRECT_URI,
+            client_id: CLIENT_ID,
+            code_verifier: codeVerifier
+        });
+
+        const response = await fetch('https://accounts.spotify.com/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: body.toString()
+        });
+
+        const data = await response.json();
+        return data.access_token;
+    }
+
+    function initializeSpotifyPlayer(token) {
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            const player = new Spotify.Player({
+                name: 'Web Playback SDK',
+                getOAuthToken: cb => { cb(token); },
+                volume: 0.8
+            });
+
+            // Error handling
+            player.addListener('initialization_error', ({ message }) => console.error(message));
+            player.addListener('authentication_error', ({ message }) => console.error(message));
+            player.addListener('account_error', ({ message }) => console.error(message));
+            player.addListener('playback_error', ({ message }) => console.error(message));
+
+            // Ready
+            player.addListener('ready', ({ device_id }) => {
+                document.getElementById("spotifyStatus").textContent = `Spotify Player ready: ${device_id}`;
+                transferPlaybackHere(device_id, token);
+            });
+
+            player.connect();
+        };
+    }
+
+    function transferPlaybackHere(deviceId, token) {
+        fetch('https://api.spotify.com/v1/me/player', {
+            method: 'PUT',
+            body: JSON.stringify({
+                device_ids: [deviceId],
+                play: false
+            }),
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+    }
+
+
+};
